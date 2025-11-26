@@ -1,0 +1,125 @@
+
+import speech_recognition as sr
+import datetime
+import webbrowser
+import sys
+import time
+import os
+from gtts import gTTS
+from playsound import playsound
+
+# --- 1. Initialization ---
+# Initialize the Recognizer for Speech-to-Text
+r = sr.Recognizer()
+
+# --- 2. Text-to-Speech Function (The "Mouth") ---
+def speak(text):
+    """Converts the given text into speech using gTTS and plays the audio."""
+    print(f"Assistant: {text}")
+    
+    # Check if the text is meaningful before generating audio
+    if not text:
+        return
+
+    try:
+        # 1. Generate the audio file using gTTS (requires internet)
+        tts = gTTS(text=text, lang='en', tld='com')
+        filename = "response_temp.mp3"
+        tts.save(filename)
+        
+        # 2. Play the audio file using playsound
+        playsound(filename)
+        
+        # 3. Clean up the temporary file
+        os.remove(filename)
+        
+    except Exception as e:
+        # This fallback is crucial if gTTS or playsound fail (e.g., no internet or missing decoder)
+        print(f"Error: Could not speak the response.")
+        print(f"Details: {e}")
+        # The text is already printed, so we proceed without audio.
+
+# --- 3. Speech Recognition Function (The "Ears") ---
+def listen():
+    """Listens for audio input and returns the transcribed text."""
+    try:
+        with sr.Microphone() as source:
+            # Adjust for ambient noise for better accuracy
+            r.adjust_for_ambient_noise(source, duration=0.8) 
+            print("Listening...")
+            
+            # Listen for the user's input, with a timeout
+            try:
+                # Note: PyAudio is required here for microphone input
+                audio = r.listen(source, timeout=4, phrase_time_limit=8)
+            except sr.WaitTimeoutError:
+                return ""
+
+        print("Recognizing...")
+        # Use Google Speech Recognition (requires internet)
+        command = r.recognize_google(audio).lower()
+        print(f"User: {command}")
+        return command
+    
+    except Exception as e:
+        # Catch errors related to PyAudio setup or device issues
+        print(f"CRITICAL ERROR in Microphone/Recognition: {e}")
+        print("1. Ensure 'PyAudio' is correctly installed for microphone access.")
+        return ""
+    
+    except sr.UnknownValueError:
+        # This occurs if the engine cannot understand the audio
+        print("Recognition failed: Sorry, I did not catch that.")
+        return ""
+    
+    except sr.RequestError:
+        # This occurs if there is no internet connection or API is unreachable
+        print("Recognition failed: Cannot connect to the speech recognition service. (Check internet connection)")
+        return ""
+
+
+# --- 4. Intent Recognition and Action Execution (The "Brain") ---
+def process_command(command):
+    """Processes the transcribed command and performs an action."""
+    
+    if "hello" in command or "hi" in command:
+        speak("Hello! I am your simple voice assistant. How may I help you?")
+
+    elif "time" in command:
+        now = datetime.datetime.now().strftime("%I:%M %p")
+        speak(f"The current time is {now}")
+
+    elif "open youtube" in command:
+        speak("Opening YouTube.")
+        webbrowser.open("https://www.youtube.com")
+
+    elif "search for" in command:
+        # Extract the search query after "search for"
+        query = command.split("search for", 1)[-1].strip()
+        if query:
+            speak(f"Searching Google for {query}")
+            webbrowser.open(f"https://www.google.com/search?q={query}")
+        else:
+            speak("What exactly should I search for?")
+
+    elif "exit" in command or "goodbye" in command or "shut down" in command:
+        speak("Understood. Shutting down the system. Goodbye!")
+        sys.exit(0)
+
+    elif command:
+        # If a command was spoken but no specific intent was matched
+        speak(f"I heard '{command}', but I'm not configured to handle that request yet.")
+
+# --- 5. Main Execution Loop ---
+def main():
+    """The main loop for the assistant."""
+    speak("System booting up. Assistant ready and listening.")
+    
+    while True:
+        command = listen()
+        if command:
+            process_command(command)
+        time.sleep(0.1) # Small delay to prevent resource over-use
+
+if __name__ == "__main__":
+    main()
